@@ -1,3 +1,9 @@
+tuxmath (2.0.3-1ubuntu1) UNRELEASED; urgency=low
+
+  * Added the possibility to use some "Fixed" set of Cards that you can define directly in the lesson file
+
+ -- laurentd <laurentd@skynet>  Thu, 30 Jan 2014 16:11:52 +0100
+
 tuxmath (2.0.3-1) unstable; urgency=low
 
   * New upstream release [May 2011] (Closes: #692729).

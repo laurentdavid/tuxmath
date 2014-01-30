@@ -60,7 +60,8 @@ dist_lessons_DATA = lesson00 \
   lesson54 \
   lesson55 \
   lesson56 \
-  lesson57
+  lesson57 \ 
+  lessonf00
 
 EXTRA_DIST = descr_lessons \
   update-po.sh
