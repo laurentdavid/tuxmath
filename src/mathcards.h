@@ -142,7 +142,9 @@ enum {
     COMPREHENSIVE             , /* whether to generate all questions 'in order' */
     AVG_LIST_LENGTH           , /* the average number of questions in a list */
     VARY_LIST_LENGTH          , /* whether to randomly adjust list length */
-
+    FIXED_CARD_LIST           , /* A list between double quote and comma separated list of triplet
+    								(<operator>,<num1>,<num2>) to generate a fixed list of card for this lesson
+    							*/
     NOPTS
 };
 
@@ -166,6 +168,7 @@ extern const char operchars[MC_NUM_OPERS];
 typedef struct _MC_Options
 {
     int iopts[NOPTS];
+    char* copts[NOPTS];
 } MC_Options;
 
 
@@ -280,7 +283,9 @@ void print_card(MC_FlashCard card);
 /* Return the array index of the given text, e.g. randomize->47 */
 unsigned int MC_MapTextToIndex(const char* text);
 void MC_SetOpt(unsigned int index, int val); //set an option
+void MC_SetOptChar(unsigned int index, char *); //set an option char
 int MC_GetOpt(unsigned int index); //get an option :)
+char* MC_GetOptChar(unsigned int index); //get an option char
 int MC_VerifyOptionListSane(void);
 int MC_MaxFormulaSize(void); //amount of memory needed to safely hold strings
 int MC_MaxAnswerSize(void);

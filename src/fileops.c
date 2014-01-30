@@ -1336,6 +1336,11 @@ int read_config_file(FILE *fp, int file_type)
 	    Opts_SetKeepScore(atoi(value) );
 	}
 
+	else if (0 == strcasecmp(parameter, "fixed_card_list"))
+	{
+	    MC_SetOptChar(FIXED_CARD_LIST,value);
+	}
+
 	else //we're going to delegate the setting of options to their subsystems
 	{
 	    int ival = str_to_bool(value); //see if it's a valid bool

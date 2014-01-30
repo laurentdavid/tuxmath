@@ -108,6 +108,8 @@ const char* const MC_OPTION_TEXT[NOPTS+1] = {
 "AVG_LIST_LENGTH",
 "VARY_LIST_LENGTH",
 
+"FIXED_CARD_LIST",
+
 "END_OF_OPTS"
 };
 
@@ -185,7 +187,8 @@ const int MC_DEFAULTS[] = {
   //"avg list length" questions one by one. If "vary list length" 
   //is on, that length is also randomized somewhat
   100,  //AVG_LIST_LENGTH
-  0     //VARY_LIST_LENGTH  
+  0,     //VARY_LIST_LENGTH
+
 };
 
 
@@ -273,7 +276,7 @@ static int create_formula_str(char* form_str, int n1, int n2, int op, int format
 
 
 
-
+static MC_MathQuestion* create_mq_from_string(char *trigram);
 
 
 /*  MC_Initialize() sets up the struct containing all of  */
@@ -315,7 +318,7 @@ int MC_Initialize(void)
     fprintf(stderr, "\nUnable to initialize math_options");
     return 0;
   }
-
+  memset (math_opts,0,sizeof(MC_Options));
   /* set defaults */
   for (i = 0; i < NOPTS; ++i)
     {
@@ -805,6 +808,12 @@ void MC_EndGame(void)
 
   if (math_opts)
   {
+	int i =0;
+	for (i =0 ; i < NOPTS ; i++) {
+		if (math_opts->copts[i] != 0) {
+			free(math_opts->copts[i]);
+		}
+	}
     free(math_opts);
     math_opts = 0;
   }
@@ -1842,148 +1851,158 @@ MC_FlashCard generate_random_ooo_card_of_length(int length, int reformat)
 
 
 
-MC_MathQuestion* generate_list(void)
-{
-  int i, j;
-  int length = MC_GetOpt(AVG_LIST_LENGTH);
-  int cl; //raw length
-  double r1, r2, delta, var; //randomizers for list length
-  MC_MathQuestion* list = NULL;
-  MC_MathQuestion* end_of_list = NULL;
-  MC_MathQuestion* tnode = NULL;
+MC_MathQuestion* generate_list(void) {
+	int i, j;
+	int length = MC_GetOpt(AVG_LIST_LENGTH);
+	int cl; //raw length
+	double r1, r2, delta, var; //randomizers for list length
+	MC_MathQuestion* list = NULL;
+	MC_MathQuestion* end_of_list = NULL;
+	MC_MathQuestion* tnode = NULL;
 
-  if (debug_status & debug_mathcards)
-    MC_PrintMathOptions(stdout, 0);
+	if (debug_status & debug_mathcards)
+		MC_PrintMathOptions(stdout, 0);
 
-  if (!(MC_GetOpt(ARITHMETIC_ALLOWED) ||
-      MC_GetOpt(TYPING_PRACTICE_ALLOWED) ||
-      MC_GetOpt(COMPARISON_ALLOWED) ) )
-    return NULL;
+	if (!(MC_GetOpt(ARITHMETIC_ALLOWED) || MC_GetOpt(TYPING_PRACTICE_ALLOWED)
+			|| MC_GetOpt(COMPARISON_ALLOWED)))
+		return NULL;
 
-  //randomize list length by a "bell curve" centered on average
-  if (length && MC_GetOpt(VARY_LIST_LENGTH) )
-  {
-    r1 = (double)rand() / RAND_MAX / 2 + 0.5; //interval (0, 1)
-    r2 = (double)rand() / RAND_MAX / 2 + 0.5; //interval (0, 1)
-    DEBUGMSG(debug_mathcards, "Randoms chosen: %5f, %5f\n", r1, r2);
-    delta = sqrt(-2 * log(r1) ) * cos(2 * PI_VAL * r2); //standard normal dist.
-    var = length / 10.0; //variance
-    delta = delta * var;
-    DEBUGMSG(debug_mathcards, "Delta of average is %5f\n", delta);
-    length += delta;
-    if (length < 0)
-      length = 1; //just in case...
-  }
+	//randomize list length by a "bell curve" centered on average
+	if (length && MC_GetOpt(VARY_LIST_LENGTH)) {
+		r1 = (double) rand() / RAND_MAX / 2 + 0.5; //interval (0, 1)
+		r2 = (double) rand() / RAND_MAX / 2 + 0.5; //interval (0, 1)
+		DEBUGMSG(debug_mathcards, "Randoms chosen: %5f, %5f\n", r1, r2);
+		delta = sqrt(-2 * log(r1)) * cos(2 * PI_VAL * r2); //standard normal dist.
+		var = length / 10.0; //variance
+		delta = delta * var;
+		DEBUGMSG(debug_mathcards, "Delta of average is %5f\n", delta);
+		length += delta;
+		if (length < 0)
+			length = 1; //just in case...
+	}
 
-  if (MC_GetOpt(COMPREHENSIVE)) //generate all
-  {
-      int num_valid_questions; //How many questions the COMPREHENSIVE list specifies
-      int cycles_needed;       //How many times we need to generate it to get enough
+	if (MC_GetOpt(COMPREHENSIVE)) //generate all
+	{
+		int num_valid_questions; //How many questions the COMPREHENSIVE list specifies
+		int cycles_needed; //How many times we need to generate it to get enough
 
-      num_valid_questions = calc_num_valid_questions();
-      if(num_valid_questions == 0)
-      {
-	  fprintf(stderr, "generate_list() - no valid questions\n");
-	  return NULL;
-      }
+		num_valid_questions = calc_num_valid_questions();
+		if (num_valid_questions == 0) {
+			fprintf(stderr, "generate_list() - no valid questions\n");
+			return NULL;
+		}
 
-      cycles_needed = length/num_valid_questions;
+		cycles_needed = length / num_valid_questions;
 
-      if((cycles_needed * num_valid_questions) < length)
-	  cycles_needed++;
+		if ((cycles_needed * num_valid_questions) < length)
+			cycles_needed++;
 
-      DEBUGMSG(debug_mathcards, "In generate_list() - COMPREHENSIVE method requested\n");
-      DEBUGMSG(debug_mathcards, "num_valid_questions = %d\t cycles_needed = %d\n",
-	      num_valid_questions, cycles_needed);
+		DEBUGMSG(debug_mathcards,
+				"In generate_list() - COMPREHENSIVE method requested\n");
+		DEBUGMSG(debug_mathcards,
+				"num_valid_questions = %d\t cycles_needed = %d\n",
+				num_valid_questions, cycles_needed);
 
-      for (i = MC_PT_TYPING; i < MC_NUM_PTYPES; ++i)
-      {
-	  if (!MC_GetOpt(i + TYPING_PRACTICE_ALLOWED))
-	      continue;
-	  for (j = 0; j < cycles_needed; j++)
-	      list = add_all_valid(i, list, &end_of_list);
-      }
+		for (i = MC_PT_TYPING; i < MC_NUM_PTYPES; ++i) {
+			if (!MC_GetOpt(i + TYPING_PRACTICE_ALLOWED))
+				continue;
+			for (j = 0; j < cycles_needed; j++)
+				list = add_all_valid(i, list, &end_of_list);
+		}
 
+		if (MC_GetOpt(RANDOMIZE)) {
+			DEBUGMSG(debug_mathcards, "Randomizing list\n");
+			randomize_list(&list);
+		}
 
-      if (MC_GetOpt(RANDOMIZE) )
-      {
-	  DEBUGMSG(debug_mathcards, "Randomizing list\n");
-	  randomize_list(&list);
-      }
+		if (length) {
+			cl = list_length(list);
+			// NOTE this should no longer happen - we run the COMPREHENSIVE
+			// generation until we have enough questions.
+			if (length > cl) //if not enough questions, pad out with randoms
+					{
+				DEBUGMSG(debug_mathcards,
+						"Padding out list from %d to %d questions\n", cl,
+						length);
+				for (i = cl; i < length; ++i) {
+					tnode = malloc(sizeof(MC_MathQuestion));
+					if (!tnode) {
+						fprintf(stderr,
+								"In generate_list() - allocation failed!\n");
+						delete_list(list);
+						return NULL;
+					}
 
-      if (length)
-      {
-	  cl = list_length(list);
-	  // NOTE this should no longer happen - we run the COMPREHENSIVE
-	  // generation until we have enough questions.
-	  if (length > cl) //if not enough questions, pad out with randoms
-	  {
-	      DEBUGMSG(debug_mathcards, "Padding out list from %d to %d questions\n", cl, length);
-	      for (i = cl; i < length; ++i)
-	      {
-		  tnode = malloc(sizeof(MC_MathQuestion) );
-		  if(!tnode)
-		  {
-		      fprintf(stderr, "In generate_list() - allocation failed!\n");
-		      delete_list(list);
-		      return NULL;
-		  }
+					tnode->card = generate_random_flashcard();
+					list = insert_node(list, end_of_list, tnode);
+					end_of_list = tnode;
+					//          DEBUGMSG(debug_mathcards, "%d.", list_length(list) );
+				}
+			} else if (length < cl) //if too many questions, chop off tail end of list
+					{
+				DEBUGMSG(debug_mathcards, "Cutting list to %d questions\n",
+						length);
+				end_of_list = find_node(list, length);
+				delete_list(end_of_list->next);
+				end_of_list->next = NULL;
+			}
+		}
+	} else if (MC_GetOptChar(FIXED_CARD_LIST) != NULL) {
+		char * opt = MC_GetOptChar(FIXED_CARD_LIST);
+		if (opt) {
+			int curpos = 0, lastpos = 0, optlen = 0;
+			DEBUGMSG(debug_mathcards,
+					"In generate_list() - FIXED_CARD_LIST method requested\n");
 
-		  tnode->card = generate_random_flashcard();
-		  list = insert_node(list, end_of_list, tnode);
-		  end_of_list = tnode;
-		  //          DEBUGMSG(debug_mathcards, "%d.", list_length(list) );
-	      }
-	  }
-	  else if (length < cl) //if too many questions, chop off tail end of list
-	  {
-	      DEBUGMSG(debug_mathcards, "Cutting list to %d questions\n", length);
-	      end_of_list = find_node(list, length);
-	      delete_list(end_of_list->next);
-	      end_of_list->next = NULL;
-	  }
-      }
-  }
+			optlen = strlen(opt);
+			while ((curpos < optlen) && (lastpos < optlen)) {
+				if (opt[lastpos] == '(' && opt[curpos] == ')') {
+					opt[curpos] = '\0';
+					tnode = create_mq_from_string(opt + lastpos + 1); // Get the inner string
+					list = insert_node(list, end_of_list, tnode);
+					end_of_list = tnode;
+					lastpos = curpos + 1;
+				}
+				curpos++;
+			}
+			free(opt);
+		}
+	}
+	/* Here we are just generating random questions, one at a */
+	/* time until we have enough                              */
+	/* NOTE generate_random_flashcard() has some bugs, so only */
+	/* use this method if we need multiple operand questions   */
+	else {
+		DEBUGMSG(debug_mathcards,
+				"In generate_list() - COMPREHENSIVE method NOT requested\n");
 
-  /* Here we are just generating random questions, one at a */
-  /* time until we have enough                              */
-  /* NOTE generate_random_flashcard() has some bugs, so only */
-  /* use this method if we need multiple operand questions   */
-  else 
-  {
-      DEBUGMSG(debug_mathcards, "In generate_list() - COMPREHENSIVE method NOT requested\n");
+		for (i = 0; i < length; ++i) {
+			tnode = malloc(sizeof(MC_MathQuestion));
+			if (!tnode) {
+				fprintf(stderr, "In generate_list() - allocation failed!\n");
+				delete_list(list);
+				return NULL;
+			}
 
-      for (i = 0; i < length; ++i)
-      {
-	  tnode = malloc(sizeof(MC_MathQuestion) );
-	  if(!tnode)
-	  {
-	      fprintf(stderr, "In generate_list() - allocation failed!\n");
-	      delete_list(list);
-	      return NULL;
-	  }
+			tnode->card = generate_random_flashcard();
+			list = insert_node(list, end_of_list, tnode);
+			end_of_list = tnode;
+		}
+	}
+	/* Now just put the question_id values in: */
 
-	  tnode->card = generate_random_flashcard();
-	  list = insert_node(list, end_of_list, tnode);
-	  end_of_list = tnode;
-      }
-  }
-  /* Now just put the question_id values in: */
+	// Avoid segfault if the list is null
+	if (list != NULL) {
+		int i = 1;
+		MC_MathQuestion* ptr = list;
+		while (ptr) {
+			ptr->card.question_id = i;
+			ptr = ptr->next;
+			i++;
+		}
+	}
 
-  // Avoid segfault if the list is null
-  if (list != NULL)
-  {
-      int i = 1;
-      MC_MathQuestion* ptr = list;
-      while(ptr)
-      {
-	  ptr->card.question_id = i;
-	  ptr = ptr->next;
-	  i++;
-      }
-  }
-
-  return list;
+	return list;
 }
 
 /* NOTE - returns 0 (i.e. "false") if *identical*, and */
@@ -2049,6 +2068,18 @@ unsigned int MC_MapTextToIndex(const char* text)
     return NOT_VALID_OPTION;
 }
 
+void MC_SetOptChar(unsigned int index, char *val)
+{
+	if (val) {
+		if (strcmp(val,"0")==0) {
+			math_opts->copts[index] = NULL;
+		} else {
+			char * valref = malloc(strlen(val));
+			strcpy(valref,val);
+			math_opts->copts[index] = valref;
+		}
+	}
+}
 
 void MC_SetOpt(unsigned int index, int val)
 {
@@ -2183,6 +2214,19 @@ void MC_SetOpt(unsigned int index, int val)
     math_opts->iopts[index] = val;
 }
 
+char* MC_GetOptChar(unsigned int index) {
+	switch (index) {
+	case FIXED_CARD_LIST:
+		if (math_opts->copts[index] != 0) {
+			char * optcopy = malloc (strlen(math_opts->copts[index]));
+			strcpy(optcopy, math_opts->copts[index]);
+			return optcopy;
+		}
+		break;
+	}
+	return NULL;
+}
+
 int MC_GetOpt(unsigned int index)
 {
     if (index >= NOPTS)
@@ -2295,7 +2339,41 @@ static int calc_num_valid_questions(void)
     return total_questions;
 }
 
-
+// Computes values from the trigram "val1,val2,op"
+// No additional space please !
+//
+MC_MathQuestion* create_mq_from_string(char *trigram) {
+	MC_MathQuestion* tnode = NULL;
+	tnode = allocate_node();
+	if (tnode!=0) {
+		// Get the values from the trigram
+		int i, j, k;
+		char c;
+		sscanf(trigram,"%i,%i,%c",&i,&j,&c);
+		switch (c) {
+		case '/':
+			k = MC_OPER_DIV;
+			tnode->card.answer = i/j;
+			break;
+		case '-':
+			k = MC_OPER_SUB;
+			tnode->card.answer = i-j;
+			break;
+		case '*':
+			k = MC_OPER_MULT;
+			tnode->card.answer = i*j;
+			break;
+		default:
+			k = MC_OPER_ADD;
+			tnode->card.answer = i+j;
+			break;
+		}
+		create_formula_str(tnode->card.formula_string, i, j, k, MC_FORMAT_ANS_LAST);
+		snprintf(tnode->card.answer_string, MC_ANSWER_LEN, "%d", tnode->card.answer);
+		tnode->card.difficulty = k + 1;
+	}
+	return tnode;
+}
 
 
 //NOTE end_of_list** needs to be doubly indirect because otherwise the end does not
